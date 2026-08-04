@@ -1,0 +1,40 @@
+# Per-file PHP backend — no front controller, each endpoint is its own .php file.
+Options -Indexes
+
+# ── PHP handler ────────────────────────────────────────────────────────────────
+<FilesMatch "\.php$">
+    SetHandler application/x-httpd-php
+</FilesMatch>
+
+# Block direct HTTP access to config helper files (they're server-side includes only)
+<FilesMatch "^(config|database|db|helpers|cors|email|constants|required)\.php$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# ── CORS: Apache-level headers (mod_headers) ───────────────────────────────────
+# These fire BEFORE PHP, which is what makes the OPTIONS preflight work.
+# PHP's cors.php sets the same headers again — that's fine, duplicates are merged.
+<IfModule mod_headers.c>
+    # Allow any localhost origin (covers :5173 Vite, :3000 CRA, :80 production, etc.)
+    SetEnvIf Origin "^http://localhost(:[0-9]+)?$" CORS_ALLOWED=1
+    SetEnvIf Origin "^http://127\.0\.0\.1(:[0-9]+)?$" CORS_ALLOWED=1
+
+    Header always set Access-Control-Allow-Credentials "true" env=CORS_ALLOWED
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" env=CORS_ALLOWED
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With" env=CORS_ALLOWED
+    Header always set Access-Control-Max-Age "3600" env=CORS_ALLOWED
+
+    # Echo the request Origin back so the browser accepts it (required with credentials)
+    Header always set Access-Control-Allow-Origin %{HTTP_ORIGIN}e env=CORS_ALLOWED
+</IfModule>
+
+# ── CORS: OPTIONS preflight reply ──────────────────────────────────────────────
+# Return 200 immediately for OPTIONS — no PHP execution needed.
+# This is the critical rule: without it, Apache returns 405 on OPTIONS.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule ^ - [R=200,L]
+</IfModule>
+

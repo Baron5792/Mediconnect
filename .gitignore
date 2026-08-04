@@ -32,3 +32,9 @@ history/*.json
 .vite_cache
 /.skills
 /tasks
+
+
+.env
+.env.local
+.env.*
+!.env.example
